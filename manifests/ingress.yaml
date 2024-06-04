@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ${DEPLOY_ENV_URL}
+  namespace: ${NAMESPACE}
+spec:
+  rules:
+    - host: ${DEPLOY_ENV_URL}
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: ${IMAGE_NAME}-svc
+                port:
+                  number: 8080

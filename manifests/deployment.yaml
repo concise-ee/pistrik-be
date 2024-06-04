@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${IMAGE_NAME}
+  namespace: ${NAMESPACE}
+  labels:
+    app: ${IMAGE_NAME}
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: ${IMAGE_NAME}
+  template:
+    metadata:
+      labels:
+        app: ${IMAGE_NAME}
+    spec:
+      securityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
+        runAsNonRoot: true
+      serviceAccountName: concise-pistrik
+      containers:
+        - name: postgres
+          image: postgres:latest
+          env:
+            - name: POSTGRES_USER
+              value: "postgres"
+            - name: POSTGRES_PASSWORD
+              value: "admin"
+            - name: POSTGRES_DB
+              value: "pistrik"
+          securityContext:
+            runAsUser: 0
+          ports:
+            - containerPort: 5432
+        - name: ${IMAGE_NAME}
+          image: ${DOCKERHUB_REGISTRY}/${DOCKERHUB_USER}/${IMAGE_NAME}:${TAG_NAME}
+          env:
+            - name: JDK_JAVA_OPTIONS
+              value: ${JAVA_OPTS}
+            - name: XROAD_SEC_SERVER_URL
+              value: ${XROAD_SEC_SERVER_URL}
+            - name: MTLS_CERT_PATH
+              value: ${MTLS_CERT_PATH}
+            - name: MTLS_CERT_PWD
+              value: ${MTLS_CERT_PWD}
+            - name: CONSUMER_MEMBER_CLASS
+              value: ${CONSUMER_MEMBER_CLASS}
+            - name: CONSUMER_MEMBER_CODE
+              value: ${CONSUMER_MEMBER_CODE}
+            - name: CONSUMER_SUBSYTEM
+              value: ${CONSUMER_SUBSYTEM}
+            - name: XROAD_INSTANCE
+              value: ${XROAD_INSTANCE}
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: ${MEMORY_REQUEST}
+              cpu: ${CPU_REQUEST}
+            limits:
+              memory: ${MEMORY_LIMIT}
+              cpu: ${CPU_LIMIT}
+          ports:
+            - containerPort: 8080
+              name: http

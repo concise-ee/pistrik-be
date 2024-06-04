@@ -1,0 +1,62 @@
+image: maven:3.8.5-openjdk-17
+
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
+  APP: ${APP_NAME}
+  IMAGE_NAME: ${IMAGE_NAME}
+  DOCKERHUB_REGISTRY: ${DOCKERHUB_REGISTRY}
+  DOCKERHUB_USER: ${DOCKERHUB_USER}
+  DOCKERHUB_PWD: ${DOCKERHUB_PWD}
+  NAMESPACE: ${NAMESPACE}
+  DEPLOY_ENV_URL: ${DEPLOY_ENV_URL}
+  TAG_NAME: ${CI_COMMIT_SHORT_SHA}
+
+cache:
+  paths:
+    - .m2/repository
+
+stages:
+  - package
+  - release
+  - deploy
+
+maven-package:
+  stage: package
+  script:
+    - 'mvn clean package -DskipTests'
+  artifacts:
+    paths:
+      - target/*.jar
+      - target/classes
+    expire_in: 1 day
+
+docker-build:
+  stage: release
+  image: docker:stable
+  dependencies:
+    - maven-package
+  script:
+    - docker login -u ${DOCKERHUB_USER} -p ${DOCKERHUB_PWD} ${DOCKERHUB_REGISTRY}
+    - docker build -t "${DOCKERHUB_REGISTRY}/${DOCKERHUB_USER}/${IMAGE_NAME}":"${TAG_NAME}" -f ./docker/Dockerfile .
+    - docker push "${DOCKERHUB_REGISTRY}/${DOCKERHUB_USER}/${IMAGE_NAME}":"${TAG_NAME}"
+
+deploy:
+  stage: deploy
+  image: thisiskj/kubectl-envsubst
+  before_script:
+    - unset KUBECONFIG
+  variables:
+    CPU_LIMIT: 1000m
+    MEMORY_LIMIT: 1024Mi
+    CPU_REQUEST: 500m
+    MEMORY_REQUEST: 512Mi
+    JAVA_OPTS: -Xmx1024m -Xms512m
+  script:
+    - export IMAGE_PULL_SECRET=$IMAGE_NAME
+    - kubectl -n ${NAMESPACE} get secret ${APP} || kubectl -n ${NAMESPACE} create secret docker-registry ${APP} --docker-server=$DOCKERHUB_REGISTRY --docker-username=$DOCKERHUB_USER --docker-password=$DOCKERHUB_PWD
+    - envsubst < ./manifests/serviceAccount.yaml | kubectl apply -f -
+    - envsubst < ./manifests/deployment.yaml | kubectl apply -f -
+    - envsubst < ./manifests/postgres-deployment.yaml | kubectl apply -f -
+    - envsubst < ./manifests/service.yaml | kubectl apply -f -
+    - envsubst < ./manifests/postgres-service.yaml | kubectl apply -f -
+    - envsubst < ./manifests/ingress.yaml | kubectl apply -f -

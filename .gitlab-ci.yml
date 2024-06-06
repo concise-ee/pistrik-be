@@ -1,4 +1,4 @@
-image: maven:3.8.5-openjdk-17
+image: maven:3.9-amazoncorretto-21
 
 variables:
   MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
@@ -56,7 +56,5 @@ deploy:
     - kubectl -n ${NAMESPACE} get secret ${APP} || kubectl -n ${NAMESPACE} create secret docker-registry ${APP} --docker-server=$DOCKERHUB_REGISTRY --docker-username=$DOCKERHUB_USER --docker-password=$DOCKERHUB_PWD
     - envsubst < ./manifests/serviceAccount.yaml | kubectl apply -f -
     - envsubst < ./manifests/deployment.yaml | kubectl apply -f -
-    - envsubst < ./manifests/postgres-deployment.yaml | kubectl apply -f -
     - envsubst < ./manifests/service.yaml | kubectl apply -f -
-    - envsubst < ./manifests/postgres-service.yaml | kubectl apply -f -
     - envsubst < ./manifests/ingress.yaml | kubectl apply -f -
